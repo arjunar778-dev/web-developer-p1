@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Café Management System</title>
+<style>
+:root{--bg:#f3f4f1;--card:#fff;--fg:#1f2a26;--mute:#66736d;--brand:#2f5d50;--on:#fff;--line:#dfe3dd;--head:#e8ede6;--red:#b3261e;--blue:#1d5fa8;--gray:#6b7570;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141a17;--card:#1d2622;--fg:#e8efe9;--mute:#9aa8a0;--brand:#5fa58e;--on:#0f1512;--line:#33403a;--head:#26312c;--red:#f2867f;--blue:#7db3ef;--gray:#8a9690}}
+:root[data-theme="dark"]{--bg:#141a17;--card:#1d2622;--fg:#e8efe9;--mute:#9aa8a0;--brand:#5fa58e;--on:#0f1512;--line:#33403a;--head:#26312c;--red:#f2867f;--blue:#7db3ef;--gray:#8a9690}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;line-height:1.45}
+h1,h2,h3{font-family:Georgia,"Times New Roman",serif;margin:0 0 10px}
+nav{background:var(--brand);color:var(--on);display:flex;flex-wrap:wrap;align-items:center;gap:2px;padding:0 12px}
+nav b{font-family:Georgia,serif;font-size:1.2rem;margin-right:auto;padding:12px 0}
+nav a{color:var(--on);padding:12px 12px;cursor:pointer;border-bottom:3px solid transparent}
+nav a.on{border-color:var(--on)}
+.wrap{max-width:1050px;margin:18px auto;padding:0 14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:18px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:18px}
+.stats .card{margin:0}
+.stats small{color:var(--mute)}
+.stats strong{display:block;font-family:Georgia,serif;font-size:2rem;color:var(--brand)}
+input,select,button{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg)}
+button{background:var(--brand);color:var(--on);border:0;cursor:pointer}
+button.red{background:var(--red);color:var(--card)}button.blue{background:var(--blue);color:var(--card)}button.gray{background:var(--gray);color:var(--card)}
+button:focus-visible,input:focus-visible,select:focus-visible,nav a:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.fr{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px}.fr>*{flex:1;min-width:140px}
+.search{width:100%;margin-bottom:10px}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse}
+th,td{padding:8px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}th{background:var(--head)}
+.badge{padding:2px 9px;border-radius:10px;background:var(--head);font-size:.85rem}
+.tot{text-align:right}
+.login{max-width:340px;margin:12vh auto 0}.login input{width:100%;margin-bottom:10px}
+.login button{width:100%}.hint{color:var(--mute);font-size:.85rem;margin-top:10px}
+#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);align-items:center;justify-content:center;padding:14px;z-index:9}
+#modal.open{display:flex}
+.box{background:var(--card);color:var(--fg);border-radius:8px;padding:18px;max-width:440px;width:100%;max-height:90vh;overflow:auto}
+.row{display:flex;gap:10px;justify-content:center;margin-top:12px}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--brand);color:var(--on);padding:10px 16px;border-radius:6px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:10}
+#toast.show{opacity:1}#toast.err{background:var(--red);color:var(--card)}
+@media print{body>:not(#modal){display:none!important}#modal{position:static;background:none;display:block}.no-print{display:none!important}.box{max-width:none}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modal"></div>
+<div id="toast"></div>
+<script>
+const CATS=["Coffee","Tea","Snacks","Desserts","Cold Drinks"], TAX=5, K="cafe_demo_v1";
+let db, user=false, view="dashboard", cart=[];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money=n=>"₹"+Number(n).toFixed(2);
+
+function seed(){
+  const f=[["Espresso","Coffee",120,1],["Cappuccino","Coffee",150,1],["Latte","Coffee",160,1],["Masala Tea","Tea",60,1],["Green Tea","Tea",80,1],["Veg Sandwich","Snacks",110,1],["French Fries","Snacks",90,1],["Veg Burger","Snacks",130,1],["Chocolate Brownie","Desserts",100,1],["Cheesecake","Desserts",180,0],["Cold Coffee","Cold Drinks",140,1],["Lemon Iced Tea","Cold Drinks",100,1]];
+  return {foods:f.map((x,i)=>({id:i+1,name:x[0],category:x[1],price:x[2],available:x[3]})),
+    customers:[{id:1,name:"Rahul Sharma",phone:"9876543210",email:"rahul@example.com"},{id:2,name:"Priya Nair",phone:"9123456780",email:"priya@example.com"},{id:3,name:"Arun Kumar",phone:"9988776655",email:"arun@example.com"}],
+    orders:[],nf:13,nc:4,no:1001};
+}
+function load(){try{const s=localStorage.getItem(K);if(s)return JSON.parse(s)}catch(e){}return seed()}
+function save(){try{localStorage.setItem(K,JSON.stringify(db))}catch(e){}}
+db=load();
+
+function toast(m,err){const t=$("toast");t.textContent=m;t.className="show"+(err?" err":"");clearTimeout(toast.t);toast.t=setTimeout(()=>t.className="",2500)}
+function modal(h){$("modal").innerHTML='<div class="box">'+h+'</div>';$("modal").className="open"}
+function closeModal(){$("modal").className=""}
+function ask(msg,fn){window._ok=fn;modal(`<p>${esc(msg)}</p><div class="row"><button class="red" onclick="closeModal();_ok()">Yes</button><button class="gray" onclick="closeModal()">No</button></div>`)}
+function filt(box,id){const t=box.value.toLowerCase();document.querySelectorAll("#"+id+" tbody tr").forEach(r=>r.style.display=r.textContent.toLowerCase().includes(t)?"":"none")}
+
+/* ---------- Login ---------- */
+function vLogin(){return `<div class="card login"><h2>☕ Café admin login</h2>
+<form onsubmit="doLogin(event)"><input id="u" placeholder="Username" autocomplete="username"><input id="p" type="password" placeholder="Password" autocomplete="current-password"><button>Log in</button></form>
+<p class="hint">Demo login: admin / admin123</p></div>`}
+function doLogin(e){e.preventDefault();if(!$("u").value.trim()||!$("p").value){toast("Enter username and password",1);return}
+  if($("u").value.trim()==="admin"&&$("p").value==="admin123"){user=true;view="dashboard";render();toast("Logged in")}else toast("Invalid username or password",1)}
+function logout(){user=false;cart=[];render()}
+function go(v){view=v;render()}
+
+/* ---------- Dashboard ---------- */
+function vDash(){
+  const live=db.orders.filter(o=>o.status!=="Cancelled"), sales=live.reduce((s,o)=>s+o.total,0);
+  const rec=db.orders.slice(-5).reverse();
+  return `<h2>Dashboard</h2><div class="stats">
+<div class="card"><small>Total food items</small><strong>${db.foods.length}</strong></div>
+<div class="card"><small>Total customers</small><strong>${db.customers.length}</strong></div>
+<div class="card"><small>Total orders</small><strong>${db.orders.length}</strong></div>
+<div class="card"><small>Total sales</small><strong>${money(sales)}</strong></div></div>
+<div class="card"><h3>Recent orders</h3><div class="tw"><table><thead><tr><th>Order</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead><tbody>
+${rec.map(o=>`<tr><td>#${o.id}</td><td>${esc(o.cname)}</td><td>${money(o.total)}</td><td><span class="badge">${o.status}</span></td></tr>`).join("")||'<tr><td colspan="4">No orders yet. Create one on the Orders page.</td></tr>'}
+</tbody></table></div></div>`}
+
+/* ---------- Food ---------- */
+function vFood(){return `<div class="card"><h3 id="ft">Add food</h3><form onsubmit="saveFood(event)"><input type="hidden" id="fid">
+<div class="fr"><input id="fname" placeholder="Food name"><select id="fcat">${CATS.map(c=>`<option>${c}</option>`).join("")}</select>
+<input id="fprice" type="number" step="0.01" placeholder="Price"><select id="favail"><option value="1">Available</option><option value="0">Not available</option></select></div>
+<button>Save food</button> <button type="button" class="blue" onclick="clearFood()">Clear</button></form></div>
+<div class="card"><h3>Food list</h3><input class="search" placeholder="Search food..." oninput="filt(this,'ftab')"><div class="tw"><table id="ftab"><thead><tr><th>ID</th><th>Name</th><th>Category</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+${db.foods.map(f=>`<tr><td>${f.id}</td><td>${esc(f.name)}</td><td>${f.category}</td><td>${money(f.price)}</td><td>${f.available?"Available":"Not available"}</td>
+<td><button class="blue" onclick="editFood(${f.id})">Edit</button> <button class="red" onclick="delFood(${f.id})">Delete</button></td></tr>`).join("")}
+</tbody></table></div></div>`}
+function clearFood(){$("fid").value="";$("fname").value="";$("fprice").value="";$("favail").value="1";$("ft").textContent="Add food"}
+function editFood(id){const f=db.foods.find(x=>x.id===id);$("fid").value=id;$("fname").value=f.name;$("fcat").value=f.category;$("fprice").value=f.price;$("favail").value=f.available;$("ft").textContent="Edit food";scrollTo({top:0,behavior:"smooth"})}
+function saveFood(e){e.preventDefault();const name=$("fname").value.trim(),price=parseFloat($("fprice").value);
+  if(!name){toast("Food name is required",1);return}if(!(price>0)){toast("Price must be greater than 0",1);return}
+  const d={name,category:$("fcat").value,price,available:+$("favail").value};
+  if($("fid").value){Object.assign(db.foods.find(x=>x.id==$("fid").value),d);toast("Food updated")}else{db.foods.push({id:db.nf++,...d});toast("Food added")}
+  save();render()}
+function delFood(id){if(db.orders.some(o=>o.items.some(i=>i.id===id))){toast("This food is used in orders. Mark it as not available instead.",1);return}
+  ask("Delete this food item?",()=>{db.foods=db.foods.filter(x=>x.id!==id);save();render();toast("Food deleted")})}
+
+/* ---------- Customers ---------- */
+function vCust(){return `<div class="card"><h3 id="ct">Add customer</h3><form onsubmit="saveCust(event)"><input type="hidden" id="cid">
+<div class="fr"><input id="cname" placeholder="Customer name"><input id="cphone" placeholder="Phone (10 digits)"><input id="cemail" type="email" placeholder="Email (optional)"></div>
+<button>Save customer</button> <button type="button" class="blue" onclick="clearCust()">Clear</button></form></div>
+<div class="card"><h3>Customer list</h3><input class="search" placeholder="Search customer..." oninput="filt(this,'ctab')"><div class="tw"><table id="ctab"><thead><tr><th>ID</th><th>Name</th><th>Phone</th><th>Email</th><th>Actions</th></tr></thead><tbody>
+${db.customers.map(c=>`<tr><td>${c.id}</td><td>${esc(c.name)}</td><td>${esc(c.phone)}</td><td>${esc(c.email)}</td>
+<td><button class="blue" onclick="editCust(${c.id})">Edit</button> <button class="red" onclick="delCust(${c.id})">Delete</button></td></tr>`).join("")}
+</tbody></table></div></div>`}
+function clearCust(){["cid","cname","cphone","cemail"].forEach(i=>$(i).value="");$("ct").textContent="Add customer"}
+function editCust(id){const c=db.customers.find(x=>x.id===id);$("cid").value=id;$("cname").value=c.name;$("cphone").value=c.phone;$("cemail").value=c.email||"";$("ct").textContent="Edit customer";scrollTo({top:0,behavior:"smooth"})}
+function saveCust(e){e.preventDefault();const name=$("cname").value.trim(),phone=$("cphone").value.trim();
+  if(!name){toast("Customer name is required",1);return}if(!/^[0-9]{10}$/.test(phone)){toast("Phone must be exactly 10 digits",1);return}
+  const d={name,phone,email:$("cemail").value.trim()};
+  if($("cid").value){Object.assign(db.customers.find(x=>x.id==$("cid").value),d);toast("Customer updated")}else{db.customers.push({id:db.nc++,...d});toast("Customer added")}
+  save();render()}
+function delCust(id){ask("Delete this customer?",()=>{db.customers=db.customers.filter(x=>x.id!==id);save();render();toast("Customer deleted")})}
+
+/* ---------- Orders ---------- */
+function vOrders(){return `<div class="card"><h3>Create order</h3><div class="fr">
+<select id="ocust"><option value="">Walk-in customer</option>${db.customers.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select>
+<select id="ofood"><option value="">Select food</option>${db.foods.filter(f=>f.available).map(f=>`<option value="${f.id}">${esc(f.name)} - ${money(f.price)}</option>`).join("")}</select>
+<input id="oqty" type="number" value="1" min="1"><button onclick="addCart()">Add to cart</button></div>
+<div class="tw"><table><thead><tr><th>Food</th><th>Price</th><th>Quantity</th><th>Subtotal</th><th></th></tr></thead><tbody id="cartb"></tbody></table></div>
+<p class="tot">Subtotal: <span id="csub">₹0.00</span> | Tax (${TAX}%): <span id="ctax">₹0.00</span> | <b>Total: <span id="ctot">₹0.00</span></b></p>
+<button onclick="placeOrder()">Place order</button></div>
+<div class="card"><h3>All orders</h3><input class="search" placeholder="Search orders..." oninput="filt(this,'otab')"><div class="tw"><table id="otab"><thead><tr><th>Order</th><th>Customer</th><th>Total</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+${db.orders.slice().reverse().map(o=>`<tr><td>#${o.id}</td><td>${esc(o.cname)}</td><td>${money(o.total)}</td><td>${o.date}</td>
+<td><select onchange="setStatus(${o.id},this.value)" ${o.status==="Cancelled"?"disabled":""}>${["Pending","Preparing","Completed","Cancelled"].map(s=>`<option ${s===o.status?"selected":""}>${s}</option>`).join("")}</select></td>
+<td><button class="blue" onclick="bill(${o.id})">Bill</button> ${["Completed","Cancelled"].includes(o.status)?"":`<button class="red" onclick="cancelOrder(${o.id})">Cancel</button>`}</td></tr>`).join("")||'<tr><td colspan="6">No orders yet.</td></tr>'}
+</tbody></table></div></div>`}
+function addCart(){const id=+$("ofood").value,q=parseInt($("oqty").value);
+  if(!id||!(q>=1)){toast("Select a food item and a valid quantity",1);return}
+  const f=db.foods.find(x=>x.id===id),c=cart.find(x=>x.id===id);
+  if(c)c.qty+=q;else cart.push({id,name:f.name,price:f.price,qty:q});
+  $("oqty").value=1;renderCart();toast("Added to cart")}
+function qty(i,d){cart[i].qty+=d;if(cart[i].qty<1)cart.splice(i,1);renderCart()}
+function renderCart(){let sub=0;
+  $("cartb").innerHTML=cart.map((c,i)=>{const l=c.price*c.qty;sub+=l;
+    return `<tr><td>${esc(c.name)}</td><td>${money(c.price)}</td><td><button onclick="qty(${i},-1)">-</button> ${c.qty} <button onclick="qty(${i},1)">+</button></td><td>${money(l)}</td><td><button class="red" onclick="cart.splice(${i},1);renderCart()">Remove</button></td></tr>`}).join("")||'<tr><td colspan="5">Cart is empty. Pick a food item above.</td></tr>';
+  const tax=Math.round(sub*TAX)/100;$("csub").textContent=money(sub);$("ctax").textContent=money(tax);$("ctot").textContent=money(sub+tax)}
+function placeOrder(){if(!cart.length){toast("Cart is empty",1);return}
+  ask("Place this order?",()=>{const sub=cart.reduce((s,c)=>s+c.price*c.qty,0),tax=Math.round(sub*TAX)/100,cu=db.customers.find(c=>c.id==$("ocust").value);
+    const o={id:db.no++,cname:cu?cu.name:"Walk-in",items:cart.map(c=>({...c})),sub,tax,total:sub+tax,status:"Pending",date:new Date().toLocaleString()};
+    db.orders.push(o);cart=[];save();render();toast("Order placed");bill(o.id)})}
+function setStatus(id,s){db.orders.find(o=>o.id===id).status=s;save();render();toast(`Order #${id} marked as ${s}`)}
+function cancelOrder(id){ask("Cancel this order?",()=>setStatus(id,"Cancelled"))}
+
+/* ---------- Bill ---------- */
+function bill(id){const o=db.orders.find(x=>x.id===id);
+  modal(`<h2 style="text-align:center">☕ Café Management</h2><p>Bill no: <b>#${o.id}</b><br>Date: ${o.date}<br>Customer: ${esc(o.cname)}<br>Status: ${o.status}</p>
+<div class="tw"><table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Subtotal</th></tr></thead><tbody>${o.items.map(i=>`<tr><td>${esc(i.name)}</td><td>${i.qty}</td><td>${money(i.price)}</td><td>${money(i.price*i.qty)}</td></tr>`).join("")}</tbody></table></div>
+<p class="tot">Subtotal: ${money(o.sub)}<br>Tax (${TAX}%): ${money(o.tax)}<br><b>Total: ${money(o.total)}</b></p>
+<div class="row no-print"><button onclick="window.print()">Print bill</button><button class="gray" onclick="closeModal()">Close</button></div>`)}
+
+/* ---------- Render ---------- */
+function render(){
+  if(!user){$("app").innerHTML=`<div class="wrap">${vLogin()}</div>`;return}
+  const tabs=[["dashboard","Dashboard"],["food","Food"],["customers","Customers"],["orders","Orders"]];
+  const body={dashboard:vDash,food:vFood,customers:vCust,orders:vOrders}[view]();
+  $("app").innerHTML=`<nav><b>☕ Café Manager</b>${tabs.map(t=>`<a tabindex="0" class="${view===t[0]?"on":""}" onclick="go('${t[0]}')" onkeydown="if(event.key==='Enter')go('${t[0]}')">${t[1]}</a>`).join("")}<a tabindex="0" onclick="logout()" onkeydown="if(event.key==='Enter')logout()">Logout</a></nav><div class="wrap">${body}</div>`;
+  if(view==="orders")renderCart();
+}
+render();
+</script>
+</body>
+</html>
